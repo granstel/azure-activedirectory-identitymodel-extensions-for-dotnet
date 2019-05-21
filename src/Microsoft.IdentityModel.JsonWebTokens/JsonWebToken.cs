@@ -363,6 +363,31 @@ namespace Microsoft.IdentityModel.JsonWebTokens
             EncodedToken = rawData;
         }
 
+        private Claim GetClaimFromJToken(string claimType, JToken jtoken, string issuer)
+        {
+            if (jtoken.Type is JTokenType.Object)
+            {
+                return new Claim(claimType, jtoken.ToString(Formatting.None), JsonClaimValueTypes.Json, issuer, issuer);
+            }
+            else if (jtoken.Type is JTokenType.Array)
+            {
+                return new Claim(claimType, jtoken.ToString(Formatting.None), JsonClaimValueTypes.JsonArray, issuer, issuer);
+            }
+            else if (jtoken is JValue jvalue)
+            {
+                // String is special because item.ToString(Formatting.None) will result in "/"string/"". The quotes will be added.
+                // Boolean needs item.ToString otherwise 'true' => 'True'
+                if (jvalue.Type is JTokenType.String)
+                    return new Claim(claimType, jvalue.Value.ToString(), ClaimValueTypes.String, issuer, issuer);
+                else
+                    return new Claim(claimType, jtoken.ToString(Formatting.None), GetClaimValueType(jvalue.Value), issuer, issuer);
+            }
+            else
+            {
+                return new Claim(claimType, jtoken.ToString(Formatting.None), GetClaimValueType(jtoken), issuer, issuer);
+            }
+        }
+
         private void AddClaimsFromJToken(List<Claim> claims, string claimType, JToken jtoken, string issuer)
         {
             if (jtoken.Type is JTokenType.Object)
@@ -489,9 +514,28 @@ namespace Microsoft.IdentityModel.JsonWebTokens
         }
 
         /// <summary>
-        /// Gets the 'value' corresponding to the provided key from the JWT payload { key, 'value' }.
+        /// Gets a <see cref="Claim"/> representing the { key, 'value' } pair corresponding to the provided <paramref name="key"/>.
         /// </summary>
         /// <remarks>If the key has no corresponding value, returns null. </remarks>   
+        public Claim GetPayloadClaim(string key)
+        {
+            string issuer = this.Issuer ?? ClaimsIdentity.DefaultIssuer;
+
+            if (!Payload.TryGetValue(key, out var jTokenValue))
+                throw LogHelper.LogExceptionMessage(new ArgumentException(LogHelper.FormatInvariant(LogMessages.IDX14304, key)));
+
+            if (jTokenValue == null)
+                return new Claim(key, string.Empty, JsonClaimValueTypes.JsonNull, issuer, issuer);
+            else if (jTokenValue.Type is JTokenType.String)
+                return new Claim(key, jTokenValue.ToObject<string>(), ClaimValueTypes.String, issuer, issuer);
+            else
+                return GetClaimFromJToken(key, jTokenValue, issuer);
+        }
+
+        /// <summary>
+        /// Gets the 'value' corresponding to the provided key from the JWT payload { key, 'value' }.
+        /// </summary>
+        /// <remarks>If the key has no corresponding value, this method will throw. </remarks>   
         public T GetPayloadValue<T>(string key)
         {
             if (string.IsNullOrEmpty(key))
@@ -547,7 +591,7 @@ namespace Microsoft.IdentityModel.JsonWebTokens
         /// <summary>
         /// Gets the 'value' corresponding to the provided key from the JWT header { key, 'value' }.
         /// </summary>
-        /// <remarks>If the key has no corresponding value, returns null. </remarks>   
+        /// <remarks>If the key has no corresponding value, this method will throw. </remarks>   
         public T GetHeaderValue<T>(string key)
         {
             if (string.IsNullOrEmpty(key))

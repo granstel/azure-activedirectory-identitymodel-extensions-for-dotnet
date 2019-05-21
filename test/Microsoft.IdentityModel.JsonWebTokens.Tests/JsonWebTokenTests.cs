@@ -27,10 +27,13 @@
 
 using Microsoft.IdentityModel.Json;
 using Microsoft.IdentityModel.Json.Linq;
+using Microsoft.IdentityModel.Logging;
 using Microsoft.IdentityModel.TestUtils;
 using Microsoft.IdentityModel.Tokens;
 using System;
+using System.Collections.Generic;
 using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 using Xunit;
 
 #pragma warning disable CS3016 // Arrays as attribute arguments is not CLS-compliant
@@ -39,9 +42,47 @@ namespace Microsoft.IdentityModel.JsonWebTokens.Tests
 {
     public class JsonWebTokenTests
     {
-        private string jObject = @"{""intarray"":[1,2,3], ""array"":[1,""2"",3], ""string"":""bob"", ""float"":42.0, ""integer"":42, ""nill"": null, ""bool"" : true}";
+        private string jObject = @"{""intarray"":[1,2,3], ""array"":[1,""2"",3], ""jobject"": { ""string1"":""string1value"", ""string2"":""string2value"" },""string"":""bob"", ""float"":42.0, ""integer"":42, ""nill"": null, ""bool"" : true }";
+        private List<Claim> payloadClaims = new List<Claim>()
+        {
+            new Claim("intarray", @"[1,2,3]", JsonClaimValueTypes.JsonArray, "LOCAL AUTHORITY", "LOCAL AUTHORITY"),
+            new Claim("array", @"[1,""2"",3]", JsonClaimValueTypes.JsonArray, "LOCAL AUTHORITY", "LOCAL AUTHORITY"),
+            new Claim("jobject", @"{""string1"":""string1value"",""string2"":""string2value""}", JsonClaimValueTypes.Json, "LOCAL AUTHORITY", "LOCAL AUTHORITY"),
+            new Claim("string", "bob", ClaimValueTypes.String, "LOCAL AUTHORITY", "LOCAL AUTHORITY"),
+            new Claim("float", "42.0", ClaimValueTypes.Double, "LOCAL AUTHORITY", "LOCAL AUTHORITY"),
+            new Claim("integer", "42", ClaimValueTypes.Integer, "LOCAL AUTHORITY", "LOCAL AUTHORITY"),
+            new Claim("nill", "null", JsonClaimValueTypes.JsonNull, "LOCAL AUTHORITY", "LOCAL AUTHORITY"),
+            new Claim("bool", "true", ClaimValueTypes.Boolean, "LOCAL AUTHORITY", "LOCAL AUTHORITY")
+        };
 
-        // Test checks to make sure that the JsonWebToken payload is correctly converted to IEnumerable<Claim>.
+        // Test checks to make sure that the JsonWebToken GetClaim() method is able to retrieve every Claim returned by the Claims property (with the exception 
+        // of Claims that are JObjects or arrays, as those are converted to strings by the GetClaim() method).
+        [Fact]
+        public void GetClaim()
+        {
+            var context = new CompareContext();
+            var jsonWebTokenHandler = new JsonWebTokenHandler();
+            var jsonWebTokenString = jsonWebTokenHandler.CreateToken(Default.PayloadString, KeyingMaterial.JsonWebKeyRsa256SigningCredentials);
+            var jsonWebToken = new JsonWebToken(jsonWebTokenString);
+            var claims = jsonWebToken.Claims;
+
+            foreach (var claim in claims)
+            {
+                var claimToCompare = jsonWebToken.GetPayloadClaim(claim.Type);
+                IdentityComparer.AreEqual(claim, claimToCompare, context);
+            }
+
+            jsonWebToken = new JsonWebToken("{}", jObject.ToString());
+
+            foreach (var claim in payloadClaims)
+            {
+                var claimToCompare = jsonWebToken.GetPayloadClaim(claim.Type);
+                IdentityComparer.AreEqual(claim, claimToCompare, context);
+            }
+
+            TestUtilities.AssertFailIfErrors(context);
+        }
+
         [Fact]
         public void GetClaimsFromJObject()
         {
@@ -73,6 +114,7 @@ namespace Microsoft.IdentityModel.JsonWebTokens.Tests
         public void GetHeaderValues()
         {
             var context = new CompareContext();
+            IdentityModelEventSource.ShowPII = true;
             TestUtilities.WriteHeader($"{this}.GetHeaderValues");
 
             var token = new JsonWebToken(jObject, "{}");
@@ -82,6 +124,10 @@ namespace Microsoft.IdentityModel.JsonWebTokens.Tests
 
             var array = token.GetHeaderValue<object[]>("array");
             IdentityComparer.AreEqual(new object[] { 1L, "2", 3L}, array, context);
+
+            // only possible internally within the library since we're using Microsoft.IdentityModel.Json.Linq.JObject
+            var jobject = token.GetHeaderValue<JObject>("jobject");
+            IdentityComparer.AreEqual(JObject.Parse(@"{ ""string1"":""string1value"", ""string2"":""string2value"" }"), jobject, context);
 
             var name = token.GetHeaderValue<string>("string");
             IdentityComparer.AreEqual("bob", name, context);
@@ -136,6 +182,11 @@ namespace Microsoft.IdentityModel.JsonWebTokens.Tests
             IdentityComparer.AreEqual(new object[] { 1L, "2", 3L }, array, context);
             IdentityComparer.AreEqual(true, success, context);
 
+            // only possible internally within the library since we're using Microsoft.IdentityModel.Json.Linq.JObject
+            success = token.TryGetHeaderValue("jobject", out JObject jobject);
+            IdentityComparer.AreEqual(JObject.Parse(@"{ ""string1"":""string1value"", ""string2"":""string2value"" }"), jobject, context);
+            IdentityComparer.AreEqual(true, success, context);
+
             success = token.TryGetHeaderValue("string", out string name);
             IdentityComparer.AreEqual("bob", name, context);
             IdentityComparer.AreEqual(true, success, context);
@@ -181,6 +232,10 @@ namespace Microsoft.IdentityModel.JsonWebTokens.Tests
 
             var array = token.GetPayloadValue<object[]>("array");
             IdentityComparer.AreEqual(new object[] { 1L, "2", 3L }, array, context);
+
+            // only possible internally within the library since we're using Microsoft.IdentityModel.Json.Linq.JObject
+            var jobject = token.GetPayloadValue<JObject>("jobject");
+            IdentityComparer.AreEqual(JObject.Parse(@"{ ""string1"":""string1value"", ""string2"":""string2value"" }"), jobject, context);
 
             var name = token.GetPayloadValue<string>("string");
             IdentityComparer.AreEqual("bob", name, context);
@@ -233,6 +288,11 @@ namespace Microsoft.IdentityModel.JsonWebTokens.Tests
 
             success = token.TryGetPayloadValue("array", out object[] array);
             IdentityComparer.AreEqual(new object[] { 1L, "2", 3L }, array, context);
+            IdentityComparer.AreEqual(true, success, context);
+
+            // only possible internally within the library since we're using Microsoft.IdentityModel.Json.Linq.JObject
+            success = token.TryGetPayloadValue("jobject", out JObject jobject);
+            IdentityComparer.AreEqual(JObject.Parse(@"{ ""string1"":""string1value"", ""string2"":""string2value"" }"), jobject, context);
             IdentityComparer.AreEqual(true, success, context);
 
             success = token.TryGetPayloadValue("string", out string name);
