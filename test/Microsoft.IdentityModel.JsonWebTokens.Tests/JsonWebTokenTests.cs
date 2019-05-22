@@ -55,10 +55,10 @@ namespace Microsoft.IdentityModel.JsonWebTokens.Tests
             new Claim("bool", "true", ClaimValueTypes.Boolean, "LOCAL AUTHORITY", "LOCAL AUTHORITY")
         };
 
-        // Test checks to make sure that the JsonWebToken GetClaim() method is able to retrieve every Claim returned by the Claims property (with the exception 
-        // of Claims that are JObjects or arrays, as those are converted to strings by the GetClaim() method).
+        // Test checks to make sure that the JsonWebToken.GetPayloadClaim() method is able to retrieve every Claim returned by the Claims property (with the exception 
+        // of Claims that are JObjects or arrays, as those are converted to strings by the GetPayloadClaim() method).
         [Fact]
-        public void GetClaim()
+        public void CompareGetClaimAndClaims()
         {
             var context = new CompareContext();
             var jsonWebTokenHandler = new JsonWebTokenHandler();
@@ -72,7 +72,16 @@ namespace Microsoft.IdentityModel.JsonWebTokens.Tests
                 IdentityComparer.AreEqual(claim, claimToCompare, context);
             }
 
-            jsonWebToken = new JsonWebToken("{}", jObject.ToString());
+            TestUtilities.AssertFailIfErrors(context);
+        }
+
+        // Test checks to make sure that the Claim values returned by GetPayloadClaim() are what we expect.
+        // This includes JArrays and JObjects, which are converted to strings.
+        [Fact]
+        public void GetClaim()
+        {
+            var context = new CompareContext();
+            var jsonWebToken = new JsonWebToken("{}", jObject.ToString());
 
             foreach (var claim in payloadClaims)
             {
@@ -123,7 +132,7 @@ namespace Microsoft.IdentityModel.JsonWebTokens.Tests
             IdentityComparer.AreEqual(new int[] { 1, 2, 3 }, intarray, context);
 
             var array = token.GetHeaderValue<object[]>("array");
-            IdentityComparer.AreEqual(new object[] { 1L, "2", 3L}, array, context);
+            IdentityComparer.AreEqual(new object[] { 1L, "2", 3L }, array, context);
 
             // only possible internally within the library since we're using Microsoft.IdentityModel.Json.Linq.JObject
             var jobject = token.GetHeaderValue<JObject>("jobject");
@@ -138,7 +147,7 @@ namespace Microsoft.IdentityModel.JsonWebTokens.Tests
             var integer = token.GetHeaderValue<int>("integer");
             IdentityComparer.AreEqual(42, integer, context);
 
-            var nill = token.GetHeaderValue <object> ("nill");
+            var nill = token.GetHeaderValue<object>("nill");
             IdentityComparer.AreEqual(nill, null, context);
 
             var boolean = token.GetHeaderValue<bool>("bool");
@@ -156,7 +165,7 @@ namespace Microsoft.IdentityModel.JsonWebTokens.Tests
             try // Try to retrieve an integer when the value is actually a string.
             {
                 token.GetHeaderValue<int>("string");
-            } 
+            }
             catch (Exception ex)
             {
                 ExpectedException.ArgumentException("IDX14305:", typeof(System.FormatException)).ProcessException(ex, context);
@@ -370,7 +379,7 @@ namespace Microsoft.IdentityModel.JsonWebTokens.Tests
                     {
                         First = true,
                         Payload = new JObject()
-                        {       
+                        {
                             { JwtRegisteredClaimNames.Email, "Bob@contoso.com" },
                             { JwtRegisteredClaimNames.GivenName, "Bob" },
                             { JwtRegisteredClaimNames.Iss, Default.Issuer },

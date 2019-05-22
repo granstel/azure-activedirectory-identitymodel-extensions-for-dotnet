@@ -69,7 +69,8 @@ namespace Microsoft.IdentityModel.JsonWebTokens
             {
                 var tokenParts = jwtEncodedString.Split('.');
                 Decode(tokenParts, jwtEncodedString);
-            } else
+            }
+            else
                 throw LogHelper.LogExceptionMessage(new ArgumentException(LogHelper.FormatInvariant(LogMessages.IDX14100, jwtEncodedString)));
         }
 
@@ -91,7 +92,7 @@ namespace Microsoft.IdentityModel.JsonWebTokens
             try
             {
                 Header = JObject.Parse(header);
-            } 
+            }
             catch (Exception ex)
             {
                 throw LogHelper.LogExceptionMessage(new ArgumentException(LogHelper.FormatInvariant(LogMessages.IDX14301, header), ex));
@@ -100,7 +101,7 @@ namespace Microsoft.IdentityModel.JsonWebTokens
             try
             {
                 Payload = JObject.Parse(payload);
-            } 
+            }
             catch (Exception ex)
             {
                 throw LogHelper.LogExceptionMessage(new ArgumentException(LogHelper.FormatInvariant(LogMessages.IDX14302, payload), ex));
@@ -359,33 +360,8 @@ namespace Microsoft.IdentityModel.JsonWebTokens
                 DecodeJwe(tokenParts);
             else
                 DecodeJws(tokenParts);
-                
-            EncodedToken = rawData;
-        }
 
-        private Claim GetClaimFromJToken(string claimType, JToken jtoken, string issuer)
-        {
-            if (jtoken.Type is JTokenType.Object)
-            {
-                return new Claim(claimType, jtoken.ToString(Formatting.None), JsonClaimValueTypes.Json, issuer, issuer);
-            }
-            else if (jtoken.Type is JTokenType.Array)
-            {
-                return new Claim(claimType, jtoken.ToString(Formatting.None), JsonClaimValueTypes.JsonArray, issuer, issuer);
-            }
-            else if (jtoken is JValue jvalue)
-            {
-                // String is special because item.ToString(Formatting.None) will result in "/"string/"". The quotes will be added.
-                // Boolean needs item.ToString otherwise 'true' => 'True'
-                if (jvalue.Type is JTokenType.String)
-                    return new Claim(claimType, jvalue.Value.ToString(), ClaimValueTypes.String, issuer, issuer);
-                else
-                    return new Claim(claimType, jtoken.ToString(Formatting.None), GetClaimValueType(jvalue.Value), issuer, issuer);
-            }
-            else
-            {
-                return new Claim(claimType, jtoken.ToString(Formatting.None), GetClaimValueType(jtoken), issuer, issuer);
-            }
+            EncodedToken = rawData;
         }
 
         private void AddClaimsFromJToken(List<Claim> claims, string claimType, JToken jtoken, string issuer)
@@ -526,10 +502,21 @@ namespace Microsoft.IdentityModel.JsonWebTokens
 
             if (jTokenValue == null)
                 return new Claim(key, string.Empty, JsonClaimValueTypes.JsonNull, issuer, issuer);
-            else if (jTokenValue.Type is JTokenType.String)
-                return new Claim(key, jTokenValue.ToObject<string>(), ClaimValueTypes.String, issuer, issuer);
+            else if (jTokenValue.Type is JTokenType.Object)
+                return new Claim(key, jTokenValue.ToString(Formatting.None), JsonClaimValueTypes.Json, issuer, issuer);
+            else if (jTokenValue.Type is JTokenType.Array)
+                return new Claim(key, jTokenValue.ToString(Formatting.None), JsonClaimValueTypes.JsonArray, issuer, issuer);
+            else if (jTokenValue is JValue jvalue)
+            {
+                // String is special because item.ToString(Formatting.None) will result in "/"string/"". The quotes will be added.
+                // Boolean needs item.ToString otherwise 'true' => 'True'
+                if (jvalue.Type is JTokenType.String)
+                    return new Claim(key, jvalue.Value.ToString(), ClaimValueTypes.String, issuer, issuer);
+                else
+                    return new Claim(key, jTokenValue.ToString(Formatting.None), GetClaimValueType(jvalue.Value), issuer, issuer);
+            }
             else
-                return GetClaimFromJToken(key, jTokenValue, issuer);
+                return new Claim(key, jTokenValue.ToString(Formatting.None), GetClaimValueType(jTokenValue), issuer, issuer);
         }
 
         /// <summary>
@@ -603,7 +590,7 @@ namespace Microsoft.IdentityModel.JsonWebTokens
             T value;
             try
             {
-                value =  jTokenValue.ToObject<T>();
+                value = jTokenValue.ToObject<T>();
             }
             catch (Exception ex)
             {
