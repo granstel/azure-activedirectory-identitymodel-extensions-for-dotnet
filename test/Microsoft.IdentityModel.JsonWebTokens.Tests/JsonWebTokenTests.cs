@@ -58,7 +58,7 @@ namespace Microsoft.IdentityModel.JsonWebTokens.Tests
         // Test checks to make sure that the JsonWebToken.GetPayloadClaim() method is able to retrieve every Claim returned by the Claims property (with the exception 
         // of Claims that are JObjects or arrays, as those are converted to strings by the GetPayloadClaim() method).
         [Fact]
-        public void CompareGetClaimAndClaims()
+        public void CompareGetPayloadClaimAndClaims()
         {
             var context = new CompareContext();
             var jsonWebTokenHandler = new JsonWebTokenHandler();
@@ -70,6 +70,26 @@ namespace Microsoft.IdentityModel.JsonWebTokens.Tests
             {
                 var claimToCompare = jsonWebToken.GetPayloadClaim(claim.Type);
                 IdentityComparer.AreEqual(claim, claimToCompare, context);
+            }
+
+            TestUtilities.AssertFailIfErrors(context);
+        }
+
+        // Test checks to make sure that GetPayloadValue<Claim>() returns the same vaue as GetPayloadClaim() for every { key, 'value' } pair in the payload.
+        [Fact]
+        public void CompareGetPayloadClaimAndGetPayloadValue()
+        {
+            var context = new CompareContext();
+            var jsonWebTokenHandler = new JsonWebTokenHandler();
+            var jsonWebTokenString = jsonWebTokenHandler.CreateToken(Default.PayloadString, KeyingMaterial.JsonWebKeyRsa256SigningCredentials);
+            var jsonWebToken = new JsonWebToken(jsonWebTokenString);
+            var claims = jsonWebToken.Claims;
+
+            foreach (var claim in claims)
+            {
+                var claim1 = jsonWebToken.GetPayloadClaim(claim.Type);
+                var claim2 = jsonWebToken.GetPayloadValue<Claim>(claim.Type);
+                IdentityComparer.AreEqual(claim1, claim2, context);
             }
 
             TestUtilities.AssertFailIfErrors(context);

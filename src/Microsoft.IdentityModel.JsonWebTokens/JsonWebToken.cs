@@ -495,7 +495,7 @@ namespace Microsoft.IdentityModel.JsonWebTokens
         /// <remarks>If the key has no corresponding value, returns null. </remarks>   
         public Claim GetPayloadClaim(string key)
         {
-            string issuer = this.Issuer ?? ClaimsIdentity.DefaultIssuer;
+            string issuer = Issuer ?? ClaimsIdentity.DefaultIssuer;
 
             if (!Payload.TryGetValue(key, out var jTokenValue))
                 throw LogHelper.LogExceptionMessage(new ArgumentException(LogHelper.FormatInvariant(LogMessages.IDX14304, key)));
@@ -527,6 +527,9 @@ namespace Microsoft.IdentityModel.JsonWebTokens
         {
             if (string.IsNullOrEmpty(key))
                 throw LogHelper.LogArgumentNullException(nameof(key));
+
+            if (typeof(T).Equals(typeof(Claim)))
+                return (T)(object)GetPayloadClaim(key);
 
             if (!Payload.TryGetValue(key, out var jTokenValue))
                 throw LogHelper.LogExceptionMessage(new ArgumentException(LogHelper.FormatInvariant(LogMessages.IDX14304, key)));
